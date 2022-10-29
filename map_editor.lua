@@ -7,6 +7,8 @@ Widget = require("src/utils/widget")
 
 Maps = Map_handler.load_maps()
 
+Text_buffer = ""
+
 Menu_cursor_origin = {
     x = 5,
     y = 4
@@ -32,13 +34,33 @@ local function clear_screen()
     io.flush()
 end
 
+local function print_text(text)
+    Text_buffer = text
+end
+
+local function handle_menu_option(option)
+    if Current_menu == Menu.main_menu then
+        if option == 1 then
+            print_text("Editing map...")
+        elseif option == 2 then
+            print_text("Adding map...")
+        elseif option == 3 then
+            print_text("Removing map...")
+        end
+    end
+end
+
 local function handle_input(input)
+    Key_code = Input_reader.Key_code
     if input == "q" then
         os.exit()
-    elseif input == "arrow_up" then
+    elseif input == Key_code.arrow.up then
         Current_menu.previous_option()
-    elseif input == "arrow_down" then
+    elseif input == Key_code.arrow.down then
         Current_menu.next_option()
+    elseif input == Key_code.enter then
+        local option = Current_menu.retrieve_option()
+        handle_menu_option(option)
     end
 end
 
@@ -53,7 +75,7 @@ local function Editor()
     while true do
         clear_screen()
         Current_menu.render()
---         print(user_input)
+        print(Text_buffer)
         user_input = Input_reader.read_key()
         handle_input(user_input)
     end
