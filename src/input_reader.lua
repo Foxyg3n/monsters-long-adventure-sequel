@@ -7,6 +7,7 @@ Input_reader.Key_code = {
         right = string.char(67),
         left = string.char(68),
     },
+    enter = string.char(13),
     unknown = "",
 }
 
