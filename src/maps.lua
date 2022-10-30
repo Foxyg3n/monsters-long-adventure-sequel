@@ -1,5 +1,13 @@
 Json = require("src/utils/json")
 
+local function copy_obj(obj)
+    local copy = {}
+    for k,v in pairs(obj) do
+       copy[k] = v
+    end
+    return copy
+ end
+
 local function load_map(map_name)
     local map = {}
     local map_file = "maps/" .. map_name .. ".txt"
@@ -24,7 +32,8 @@ local function load_maps()
     return maps
 end
 
-local function save_map(map)
+local function save_map(origin_map)
+    local map = copy_obj(origin_map)
     -- saving map data
     local map_file = assert(io.open("maps/" .. map.map_name .. ".txt", "w"))
     for y = 1, #map.data do
@@ -42,6 +51,8 @@ local function save_map(map)
     end
     local maps_file = assert(io.open("maps/maps.json", "w"))
     maps_file:write(Json.encode(maps))
+    map_file:close()
+    maps_file:close()
 end
 
 Maps = {

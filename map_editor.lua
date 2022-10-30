@@ -20,7 +20,8 @@ Text_buffer = ""
 
 Menu = {
     main = {},
-    map_choice = {}
+    map_choice = {},
+    quit_without_saving = {}
 }
 
 Current_menu = Widget:new()
@@ -39,6 +40,8 @@ Editing_cursor_pos = {
     y = 1
 }
 
+Is_saved = true
+
 local function table_contains(table, contains)
     for _, value in pairs(table) do
         if value == contains then
@@ -49,11 +52,12 @@ local function table_contains(table, contains)
 end
 
 local function initialize_menus()
-    Menu.main = Widget:new("SONIC MAP EDITOR", { "Edit map", "Add map", "Remove map" })
+    Menu.main = Widget:new("SONIC MAP EDITOR", { "Edit map", "Add map", "Remove map", "Quit" })
     local map_names = {}
     for k, _ in pairs(Maps) do table.insert(map_names, Maps[k].map_name) end
     table.sort(map_names)
     Menu.map_choice = Widget:new("Choose map to edit", map_names)
+    Menu.quit_without_saving = Widget:new("Are you sure you want quit without saving?", { "Yes", "No" })
 end
 
 local function clear_screen()
@@ -73,11 +77,23 @@ local function handle_menu_option(option)
             print_text("Adding map...")
         elseif option == Current_menu.options[3] then
             print_text("Removing map...")
+        elseif option == Current_menu.options[4] then
+            os.exit()
         end
     elseif Current_menu == Menu.map_choice then
         local map_name = Current_menu:retrieve_option()
+        Maps = Map_handler.load_maps()
         Editing_map = Maps[map_name]
         Current_mode = Mode.edit
+    elseif Current_menu == Menu.quit_without_saving then
+        if option == "Yes" then
+            Current_mode = Mode.menu
+            Current_menu = Menu.main
+            Is_saved = true
+        elseif option == "No" then
+            Current_mode = Mode.edit
+            Current_menu = Menu.main
+        end
     end
 end
 
@@ -111,13 +127,25 @@ local function handle_edit_input(input)
         if Editing_cursor_pos.y > #Editing_map.data then Editing_cursor_pos.y = #Editing_map.data end
     end
     if input == "q" then
-        Map_handler.save_map(Editing_map)
-        print("Saving map " .. Editing_map.map_name .. "...")
-        os.exit()
+        if Is_saved then
+            Current_mode = Mode.menu
+            Current_menu = Menu.main
+        else
+            Current_mode = Mode.menu
+            Current_menu = Menu.quit_without_saving
+        end
     elseif input == "t" then
         Editing_map.data[Editing_cursor_pos.y][Editing_cursor_pos.x] = "#"
+        Is_saved = false
     elseif input == "d" then
         Editing_map.data[Editing_cursor_pos.y][Editing_cursor_pos.x] = " "
+        Is_saved = false
+    elseif input == "s" then
+        Map_handler.save_map(Editing_map)
+        print_text("Saving map " .. Editing_map.map_name .. "...")
+        Is_saved = true
+    elseif input == "r" then
+        
     end
 end
 
@@ -160,7 +188,11 @@ local function render_legend()
     local offset_y = 2
     Cursor_util.print_in_pos("d - Delete character", { offset_x, offset_y })
     Cursor_util.print_in_pos("t - Set wall", { offset_x, offset_y + 1 })
-    Cursor_util.print_in_pos("q - Quit", { offset_x, offset_y + 2 })
+    Cursor_util.print_in_pos("r - Edit regions", { offset_x, offset_y + 2 })
+    Cursor_util.print_in_pos("q - Quit", { offset_x, offset_y + 3 })
+    if not Is_saved then
+        Cursor_util.print_in_pos("* Map not saved", { offset_x, offset_y + 5 })
+    end
 end
 
 local function Editor()
