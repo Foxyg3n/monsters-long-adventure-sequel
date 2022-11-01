@@ -6,7 +6,7 @@ local function copy_obj(obj)
        copy[k] = v
     end
     return copy
- end
+end
 
 local function load_map(map_name)
     local map = {}

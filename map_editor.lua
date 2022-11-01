@@ -5,6 +5,7 @@
 TODOs:
 -- add map size as map property
 -- create change history (so you can CTRL Z)
+-- export setting mode/menu to function
 
 ]] --
 
@@ -17,6 +18,11 @@ Widget = require("src/utils/widget")
 Maps = Map_handler.load_maps()
 
 Text_buffer = ""
+
+Map_symbols = {
+    empty = " ",
+    wall = "#"
+}
 
 Menu = {
     main = {},
@@ -40,7 +46,22 @@ Editing_cursor_pos = {
     y = 1
 }
 
+Editing_selection_color = Color.background_bright_cyan
+
+Editing_selection_origin = {}
+Editing_selection_pos1 = {}
+Editing_selection_pos2 = {}
+
 Is_saved = true
+Is_multiselect = false
+
+local function copy_obj(obj)
+    local copy = {}
+    for k,v in pairs(obj) do
+       copy[k] = v
+    end
+    return copy
+end
 
 local function table_contains(table, contains)
     for _, value in pairs(table) do
@@ -69,6 +90,37 @@ local function print_text(text)
     Text_buffer = text
 end
 
+local function update_selection_position()
+    if Editing_cursor_pos.x > Editing_selection_origin.x then
+        Editing_selection_pos2.x = Editing_cursor_pos.x
+    elseif Editing_cursor_pos.x == Editing_selection_origin.x then
+        Editing_selection_pos1.x = Editing_cursor_pos.x
+        Editing_selection_pos2.x = Editing_cursor_pos.x
+    else
+        Editing_selection_pos1.x = Editing_cursor_pos.x
+    end
+    if Editing_cursor_pos.y > Editing_selection_origin.y then
+        Editing_selection_pos2.y = Editing_cursor_pos.y
+    elseif Editing_cursor_pos.y == Editing_selection_origin.y then
+        Editing_selection_pos1.y = Editing_cursor_pos.y
+        Editing_selection_pos2.y = Editing_cursor_pos.y
+    else
+        Editing_selection_pos1.y = Editing_cursor_pos.y
+    end
+end
+
+local function set_map_symbol(pos, symbol)
+    Editing_map.data[pos.y][pos.x] = symbol
+end
+
+local function set_map_symbols(pos1, pos2, symbol)
+    for x = 1, pos2.x - pos1.x + 1 do
+        for y = 1, pos2.y - pos1.y + 1 do
+            Editing_map.data[pos1.y + y - 1][pos1.x + x - 1] = symbol
+        end
+    end
+end
+
 local function handle_menu_option(option)
     if Current_menu == Menu.main then
         if option == Current_menu.options[1] then
@@ -89,6 +141,8 @@ local function handle_menu_option(option)
         if option == "Yes" then
             Current_mode = Mode.menu
             Current_menu = Menu.main
+            Editing_cursor_pos.x = 1
+            Editing_cursor_pos.y = 1
             Is_saved = true
         elseif option == "No" then
             Current_mode = Mode.edit
@@ -114,12 +168,16 @@ local function handle_edit_input(input)
     if table_contains(Key_code.arrow, input) then
         if input == Key_code.arrow.up then
             Editing_cursor_pos.y = Editing_cursor_pos.y - 1
+            if Is_multiselect then update_selection_position() end
         elseif input == Key_code.arrow.down then
             Editing_cursor_pos.y = Editing_cursor_pos.y + 1
+            if Is_multiselect then update_selection_position() end
         elseif input == Key_code.arrow.left then
             Editing_cursor_pos.x = Editing_cursor_pos.x - 1
+            if Is_multiselect then update_selection_position() end
         elseif input == Key_code.arrow.right then
             Editing_cursor_pos.x = Editing_cursor_pos.x + 1
+            if Is_multiselect then update_selection_position() end
         end
         if Editing_cursor_pos.x < 1 then Editing_cursor_pos.x = 1 end
         if Editing_cursor_pos.x > #Editing_map.data[1] then Editing_cursor_pos.x = #Editing_map.data[1] end
@@ -130,15 +188,27 @@ local function handle_edit_input(input)
         if Is_saved then
             Current_mode = Mode.menu
             Current_menu = Menu.main
+            Editing_cursor_pos.x = 1
+            Editing_cursor_pos.y = 1
         else
             Current_mode = Mode.menu
             Current_menu = Menu.quit_without_saving
         end
     elseif input == "t" then
-        Editing_map.data[Editing_cursor_pos.y][Editing_cursor_pos.x] = "#"
+        if Is_multiselect then
+            set_map_symbols(Editing_selection_pos1, Editing_selection_pos2, Map_symbols.wall)
+            Is_multiselect = false
+        else
+            set_map_symbol(Editing_cursor_pos, Map_symbols.wall)
+        end
         Is_saved = false
     elseif input == "d" then
-        Editing_map.data[Editing_cursor_pos.y][Editing_cursor_pos.x] = " "
+        if Is_multiselect then
+            set_map_symbols(Editing_selection_pos1, Editing_selection_pos2, Map_symbols.empty)
+            Is_multiselect = false
+        else
+            set_map_symbol(Editing_cursor_pos, Map_symbols.empty)
+        end
         Is_saved = false
     elseif input == "s" then
         Map_handler.save_map(Editing_map)
@@ -146,6 +216,15 @@ local function handle_edit_input(input)
         Is_saved = true
     elseif input == "r" then
         
+    elseif input == "v" then
+        if not Is_multiselect then
+            Editing_selection_origin = copy_obj(Editing_cursor_pos)
+            Editing_selection_pos1 = copy_obj(Editing_selection_origin)
+            Editing_selection_pos2 = copy_obj(Editing_selection_origin)
+            Is_multiselect = true
+        else
+            Is_multiselect = false
+        end
     end
 end
 
@@ -165,12 +244,14 @@ local function render_map()
     for y = 1, #Editing_map.data do
         io.write("\u{2502}")
         for x = 1, #Editing_map.data[y] do
-            if x == Editing_cursor_pos.x and y == Editing_cursor_pos.y then io.write(Color.underline) end
-            if Editing_map.data[y][x] == nil then
-                io.write("\u{2800}")
+            if not Is_multiselect then
+                if x == Editing_cursor_pos.x and y == Editing_cursor_pos.y then io.write(Color.underline) end
             else
-                io.write(Editing_map.data[y][x])
+                if x >= Editing_selection_pos1.x and x <= Editing_selection_pos2.x and y >= Editing_selection_pos1.y and y <= Editing_selection_pos2.y then
+                    io.write(Editing_selection_color)
+                end
             end
+            io.write(Editing_map.data[y][x])
             io.write(Color.reset)
         end
         io.write("\u{2502}")
