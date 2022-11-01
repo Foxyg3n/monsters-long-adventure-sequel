@@ -19,9 +19,16 @@ Maps = Map_handler.load_maps()
 
 Text_buffer = ""
 
+Editing_map = nil
+
 Map_symbols = {
     empty = " ",
     wall = "#"
+}
+
+Mode = {
+    menu = "menu",
+    edit = "edit"
 }
 
 Menu = {
@@ -30,16 +37,15 @@ Menu = {
     quit_without_saving = {}
 }
 
+Current_mode = Mode.menu
 Current_menu = Widget:new()
 
-Mode = {
-    menu = "menu",
-    edit = "edit"
+Cursor_direction = {
+    up = Input_reader.Key_code.arrow.up,
+    down = Input_reader.Key_code.arrow.down,
+    left = Input_reader.Key_code.arrow.left,
+    right = Input_reader.Key_code.arrow.right
 }
-
-Current_mode = Mode.menu
-
-Editing_map = nil
 
 Editing_cursor_pos = {
     x = 1,
@@ -90,6 +96,10 @@ local function print_text(text)
     Text_buffer = text
 end
 
+local function reset_cursor_pos()
+    Editing_cursor_pos = { x = 1, y = 1 }
+end
+
 local function update_selection_position()
     if Editing_cursor_pos.x > Editing_selection_origin.x then
         Editing_selection_pos2.x = Editing_cursor_pos.x
@@ -107,6 +117,25 @@ local function update_selection_position()
     else
         Editing_selection_pos1.y = Editing_cursor_pos.y
     end
+end
+
+local function update_cursor_position(cursor_direction)
+    if cursor_direction == Cursor_direction.up then
+        Editing_cursor_pos.y = Editing_cursor_pos.y - 1
+    elseif cursor_direction == Cursor_direction.down then
+        Editing_cursor_pos.y = Editing_cursor_pos.y + 1
+    elseif cursor_direction == Cursor_direction.left then
+        Editing_cursor_pos.x = Editing_cursor_pos.x - 1
+    elseif cursor_direction == Cursor_direction.right then
+        Editing_cursor_pos.x = Editing_cursor_pos.x + 1
+    end
+
+    if Editing_cursor_pos.x < 1 then Editing_cursor_pos.x = 1 end
+    if Editing_cursor_pos.x > #Editing_map.data[1] then Editing_cursor_pos.x = #Editing_map.data[1] end
+    if Editing_cursor_pos.y < 1 then Editing_cursor_pos.y = 1 end
+    if Editing_cursor_pos.y > #Editing_map.data then Editing_cursor_pos.y = #Editing_map.data end
+
+    if Is_multiselect then update_selection_position() end
 end
 
 local function set_map_symbol(pos, symbol)
@@ -141,8 +170,7 @@ local function handle_menu_option(option)
         if option == "Yes" then
             Current_mode = Mode.menu
             Current_menu = Menu.main
-            Editing_cursor_pos.x = 1
-            Editing_cursor_pos.y = 1
+            reset_cursor_pos()
             Is_saved = true
         elseif option == "No" then
             Current_mode = Mode.edit
@@ -164,32 +192,14 @@ local function handle_menu_input(input)
 end
 
 local function handle_edit_input(input)
-    -- cursor position
     if table_contains(Key_code.arrow, input) then
-        if input == Key_code.arrow.up then
-            Editing_cursor_pos.y = Editing_cursor_pos.y - 1
-            if Is_multiselect then update_selection_position() end
-        elseif input == Key_code.arrow.down then
-            Editing_cursor_pos.y = Editing_cursor_pos.y + 1
-            if Is_multiselect then update_selection_position() end
-        elseif input == Key_code.arrow.left then
-            Editing_cursor_pos.x = Editing_cursor_pos.x - 1
-            if Is_multiselect then update_selection_position() end
-        elseif input == Key_code.arrow.right then
-            Editing_cursor_pos.x = Editing_cursor_pos.x + 1
-            if Is_multiselect then update_selection_position() end
-        end
-        if Editing_cursor_pos.x < 1 then Editing_cursor_pos.x = 1 end
-        if Editing_cursor_pos.x > #Editing_map.data[1] then Editing_cursor_pos.x = #Editing_map.data[1] end
-        if Editing_cursor_pos.y < 1 then Editing_cursor_pos.y = 1 end
-        if Editing_cursor_pos.y > #Editing_map.data then Editing_cursor_pos.y = #Editing_map.data end
+        update_cursor_position(input)
     end
     if input == "q" then
         if Is_saved then
             Current_mode = Mode.menu
             Current_menu = Menu.main
-            Editing_cursor_pos.x = 1
-            Editing_cursor_pos.y = 1
+            reset_cursor_pos()
         else
             Current_mode = Mode.menu
             Current_menu = Menu.quit_without_saving
