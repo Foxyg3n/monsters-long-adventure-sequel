@@ -13,13 +13,14 @@ Map_handler = require("src/maps")
 Color = require("src/colors")
 Cursor_util = require("src/utils/cursor_util")
 Input_reader = require("src/input_reader")
-Widget = require("src/utils/widget")
+Widget, Input_requester = require("src/utils/widget")()
 
 Maps = Map_handler.load_maps()
 
 Text_buffer = ""
 
 Editing_map = nil
+Editing_region = nil
 
 Map_symbols = {
     empty = " ",
@@ -34,7 +35,9 @@ Mode = {
 Menu = {
     main = {},
     map_choice = {},
-    quit_without_saving = {}
+    map_regions = {},
+    quit_without_saving = {},
+    region = {}
 }
 
 Current_mode = Mode.menu
@@ -51,8 +54,6 @@ Editing_cursor_pos = {
     x = 1,
     y = 1
 }
-
-Editing_selection_color = Color.background_bright_cyan
 
 Editing_selection_origin = {}
 Editing_selection_pos1 = {}
@@ -85,11 +86,19 @@ local function initialize_menus()
     table.sort(map_names)
     Menu.map_choice = Widget:new("Choose map to edit", map_names)
     Menu.quit_without_saving = Widget:new("Are you sure you want quit without saving?", { "Yes", "No" })
+    Menu.map_regions = Widget:new("Choose a region to edit", {})
+    Menu.region = Widget:new("", { "Edit name", "Edit region bounds", "Edit monster chances" })
 end
 
 local function clear_screen()
     io.write(ESCAPE_CHAR .. "[1;1H" .. ESCAPE_CHAR .. "[2J")
     io.flush()
+end
+
+local function exit()
+    clear_screen()
+    print(Color.yellow .. "\nBye bye!\n" .. Color.reset)
+    os.exit(0)
 end
 
 local function print_text(text)
@@ -159,12 +168,17 @@ local function handle_menu_option(option)
         elseif option == Current_menu.options[3] then
             print_text("Removing map...")
         elseif option == Current_menu.options[4] then
-            os.exit()
+            exit()
         end
     elseif Current_menu == Menu.map_choice then
         local map_name = Current_menu:retrieve_option()
         Maps = Map_handler.load_maps()
         Editing_map = Maps[map_name]
+        local regions = {}
+        for i = 1, #Editing_map.regions do
+            table.insert(regions, Editing_map.regions[i].name)
+        end
+        Menu.map_regions:setOptions(regions)
         Current_mode = Mode.edit
     elseif Current_menu == Menu.quit_without_saving then
         if option == "Yes" then
@@ -176,11 +190,49 @@ local function handle_menu_option(option)
             Current_mode = Mode.edit
             Current_menu = Menu.main
         end
+    elseif Current_menu == Menu.map_regions then
+        local region_index = Current_menu:retrieve_option_index()
+        Editing_region = Editing_map.regions[region_index]
+        Current_menu = Menu.region
+        Current_menu:setTitle(Editing_map.map_name .. " - " .. Editing_region.name)
+    elseif Current_menu == Menu.region then
+        if option == Current_menu.options[1] then
+            local region_name = Input_requester:new("Type region's new name (" .. Editing_region.name .. ")"):request_input()
+            if region_name == "" then
+                print_text("Aborting")
+            else
+                Editing_region.name = region_name
+                local regions = {}
+                for i = 1, #Editing_map.regions do
+                    table.insert(regions, Editing_map.regions[i].name)
+                end
+                Menu.map_regions:setOptions(regions)
+                Current_menu:setTitle(Editing_map.map_name .. " - " .. Editing_region.name)
+                Is_saved = false
+            end
+        elseif option == Current_menu.options[2] then
+            -- edit boundries of the region
+        elseif option == Current_menu.options[3] then
+            -- edit monster ecounter probabilities
+        end
     end
 end
 
 local function handle_menu_input(input)
-    if input == "q" then os.exit() end
+    if input == "q" then
+        if Current_menu == Menu.map_regions then
+            Current_mode = Mode.edit
+        elseif Current_menu == Menu.region then
+            Current_mode = Mode.menu
+            Current_menu = Menu.map_regions
+        else
+            exit()
+        end
+    elseif input == "+" then
+        print_text("Adding new region...")
+    elseif input == "-" then
+        print_text("Removing this region...")
+    end
     if input == Key_code.arrow.up then
         Current_menu:previous_option()
     elseif input == Key_code.arrow.down then
@@ -225,7 +277,8 @@ local function handle_edit_input(input)
         print_text("Saving map " .. Editing_map.map_name .. "...")
         Is_saved = true
     elseif input == "r" then
-        
+        Current_mode = Mode.menu
+        Current_menu = Menu.map_regions
     elseif input == "v" then
         if not Is_multiselect then
             Editing_selection_origin = copy_obj(Editing_cursor_pos)
@@ -255,10 +308,10 @@ local function render_map()
         io.write("\u{2502}")
         for x = 1, #Editing_map.data[y] do
             if not Is_multiselect then
-                if x == Editing_cursor_pos.x and y == Editing_cursor_pos.y then io.write(Color.underline) end
+                if x == Editing_cursor_pos.x and y == Editing_cursor_pos.y then io.write(Color.invert) end
             else
                 if x >= Editing_selection_pos1.x and x <= Editing_selection_pos2.x and y >= Editing_selection_pos1.y and y <= Editing_selection_pos2.y then
-                    io.write(Editing_selection_color)
+                    io.write(Color.invert)
                 end
             end
             io.write(Editing_map.data[y][x])
@@ -298,7 +351,6 @@ local function Editor()
         clear_screen()
         if Current_mode == Mode.menu then
             Current_menu:render()
-            -- TODO: handle text buffer properly
             print(Text_buffer)
             Text_buffer = ""
             user_input = Input_reader.read_key()
@@ -306,7 +358,6 @@ local function Editor()
         elseif Current_mode == Mode.edit then
             render_map()
             render_legend()
-            -- TODO: handle text buffer properly
             print(Text_buffer)
             Text_buffer = ""
             user_input = Input_reader.read_key()

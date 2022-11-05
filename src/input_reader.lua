@@ -8,6 +8,7 @@ Input_reader.Key_code = {
         left = string.char(68),
     },
     enter = string.char(13),
+    backspace = string.char(127),
     unknown = "",
 }
 
