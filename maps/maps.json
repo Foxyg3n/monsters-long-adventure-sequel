@@ -1,1 +1,11 @@
-{"main":{"regions":[{"y1":13,"x2":12,"y2":13,"name":"cos1","x1":12},{"y1":13,"x2":12,"y2":13,"name":"cos2","x1":12}],"data":"","map_name":"main"},"forest":{"regions":[],"data":"","map_name":"forest"}}
+{
+  "main": {
+    "regions": [
+      { "y1": 13, "x2": 12, "y2": 13, "name": "cos1", "x1": 12 },
+      { "y1": 13, "x2": 12, "y2": 13, "name": "cos2", "x1": 12 }
+    ],
+    "data": "",
+    "map_name": "main"
+  },
+  "forest": { "regions": [], "data": "", "map_name": "forest" }
+}

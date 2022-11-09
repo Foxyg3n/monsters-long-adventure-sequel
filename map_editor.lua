@@ -86,7 +86,7 @@ local function initialize_menus()
     table.sort(map_names)
     Menu.map_choice = Widget:new("Choose map to edit", map_names)
     Menu.quit_without_saving = Widget:new("Are you sure you want quit without saving?", { "Yes", "No" })
-    Menu.map_regions = Widget:new("Choose a region to edit", {})
+    Menu.map_regions = Widget:new("Choose a region to edit (+ add / - remove)", {})
     Menu.region = Widget:new("", { "Edit name", "Edit region bounds", "Edit monster chances" })
 end
 
@@ -229,7 +229,19 @@ local function handle_menu_input(input)
             exit()
         end
     elseif input == "+" then
-        print_text("Adding new region...")
+        local region_name = Input_requester:new("Type new region's name"):request_input()
+        if region_name == "" then
+            print_text("Aborting...")
+            return
+        end
+        table.insert(Editing_map.regions, { name = region_name, x1 = 1, y1 = 1, x2 = 1, y2 = 1 })
+        local regions = {}
+        for i = 1, #Editing_map.regions do
+            table.insert(regions, Editing_map.regions[i].name)
+        end
+        Menu.map_regions:setOptions(regions)
+        Is_saved = false
+        print_text("Added new region " .. region_name)
     elseif input == "-" then
         print_text("Removing this region...")
     end
